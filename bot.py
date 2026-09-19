@@ -197,7 +197,7 @@ async def handle_image_processing(message: Message, file_id: str, original_filen
         single_file = FSInputFile(results["single_3x4"], filename="photo_3x4.jpg")
         await message.answer_photo(
             single_file,
-            caption="✅ <b>3×4 sm Hujjat fotosurati (Asl kiyimida)</b>\n<i>Sof oq fon (#FFFFFF) va standart proporsiya</i>"
+            caption="✅ <b>3×4 sm Hujjat fotosurati (Asl kiyimida)</b>\n<i>Standart 3×4 proporsiya va 300 DPI yuqori aniqlik</i>"
         )
 
         # B) 10x15 sm varaq (JPG ko'rinishida 8 ta rasm)

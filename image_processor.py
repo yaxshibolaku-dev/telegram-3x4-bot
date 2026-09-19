@@ -26,46 +26,13 @@ def get_face_cascade():
 
 def remove_background_and_make_white(image: Image.Image) -> Image.Image:
     """
-    Rasm fonini toza oq (#FFFFFF) rangga aylantiradi.
-    OpenCV floodFill va rang tahlili yordamida bir necha millisekundda fonni oqartiradi.
-    Neyrotarmoqsiz, internet yuklamasisiz, 100% ishonchli va tezkor ishlaydi.
+    Rasm orientatsiyasini EXIF bo'yicha to'g'rilaydi va RGB formatga keltiradi.
+    Asl rasm sifatini, inson yuzini va sochlarini 100% buzilmasdan saqlab qoladi.
     """
     image = ImageOps.exif_transpose(image)
     if image.mode != "RGB":
         image = image.convert("RGB")
-
-    try:
-        import cv2
-        import numpy as np
-
-        np_img = np.array(image)
-        h, w = np_img.shape[:2]
-
-        # Yuqori burchaklardan fon rangini o'lchaymiz
-        corner_size = max(10, min(w, h) // 30)
-        tl = np_img[:corner_size, :corner_size]
-        tr = np_img[:corner_size, -corner_size:]
-        corners = np.vstack([tl.reshape(-1, 3), tr.reshape(-1, 3)])
-        mean_bg = np.median(corners, axis=0)
-
-        # Agar fon och/oq devor bo'lsa
-        if np.mean(mean_bg) > 120:
-            diff = (35, 35, 35)
-            ff_mask = np.zeros((h + 2, w + 2), np.uint8)
-            img_copy = np_img.copy()
-            cv2.floodFill(img_copy, ff_mask, (0, 0), (255, 255, 255), diff, diff, flags=4 | (255 << 8))
-            cv2.floodFill(img_copy, ff_mask, (w - 1, 0), (255, 255, 255), diff, diff, flags=4 | (255 << 8))
-            connected_bg = ff_mask[1:-1, 1:-1] == 255
-
-            out_img = np_img.copy()
-            out_img[connected_bg] = [255, 255, 255]
-            return Image.fromarray(out_img)
-
-        return image
-
-    except Exception as e:
-        print(f">>> Fonni oqartirish ogohlantirish: {e}", flush=True)
-        return image
+    return image
 
 
 def detect_and_crop_3x4(image: Image.Image, head_box: list = None) -> Image.Image:
@@ -244,11 +211,11 @@ def process_user_photo(input_path: Path, output_dir: Path, head_box: list = None
     output_dir.mkdir(parents=True, exist_ok=True)
     raw_img = Image.open(input_path)
 
-    # 1. Fonni tozalash va oq qilish
-    white_bg_img = remove_background_and_make_white(raw_img)
+    # 1. EXIF orientatsiyasini to'g'rilash
+    clean_img = remove_background_and_make_white(raw_img)
 
     # 2. Bosh/yuzni aniqlash va 3x4 ga qirqish (Gemini head_box yordamida)
-    photo_3x4 = detect_and_crop_3x4(white_bg_img, head_box=head_box)
+    photo_3x4 = detect_and_crop_3x4(clean_img, head_box=head_box)
 
     # 3. Yagona 3x4 rasmni saqlash (chegarasiz va chegarali)
     single_path = output_dir / "photo_3x4.jpg"

@@ -161,9 +161,8 @@ def process_photo_with_suit(
     raw_img = Image.open(input_path)
     raw_img = ImageOps.exif_transpose(raw_img)
 
-    # 1. Fonni toza oqartiramiz (OpenCV floodFill, 0.01 soniya)
-    whitened = remove_background_and_make_white(raw_img)
-    person_rgba = whitened.convert("RGBA")
+    # 1. EXIF to'g'rilab RGBA ga o'tkazamiz
+    person_rgba = raw_img.convert("RGBA")
 
     # 2. Kostyumni kiygizish
     photo_3x4 = overlay_suit(person_rgba, head_box=head_box, suit_id=suit_id)
