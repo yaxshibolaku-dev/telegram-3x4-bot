@@ -2,8 +2,6 @@ import io
 from pathlib import Path
 from PIL import Image, ImageOps, ImageDraw
 import numpy as np
-import cv2
-import rembg
 from config import (
     PHOTO_WIDTH_PX,
     PHOTO_HEIGHT_PX,
@@ -14,8 +12,24 @@ from config import (
     DPI
 )
 
-# Load Haar Cascade face detector from OpenCV
-face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+_rembg_mod = None
+_face_cascade = None
+
+
+def get_rembg():
+    global _rembg_mod
+    if _rembg_mod is None:
+        import rembg
+        _rembg_mod = rembg
+    return _rembg_mod
+
+
+def get_face_cascade():
+    global _face_cascade
+    if _face_cascade is None:
+        import cv2
+        _face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+    return _face_cascade
 
 
 def remove_background_and_make_white(image: Image.Image) -> Image.Image:
@@ -28,7 +42,8 @@ def remove_background_and_make_white(image: Image.Image) -> Image.Image:
         image = image.convert("RGB")
 
     # rembg yordamida fonni qirqish (natija RGBA bo'ladi)
-    rgba_output = rembg.remove(image)
+    rembg_instance = get_rembg()
+    rgba_output = rembg_instance.remove(image)
 
     # Oq fon yaratib, inson siluetini ustiga joylash
     white_bg = Image.new("RGBA", rgba_output.size, (255, 255, 255, 255))
@@ -84,14 +99,19 @@ def detect_and_crop_3x4(image: Image.Image, head_box: list = None) -> Image.Imag
 
     # 2. Agar Gemini koordinatalari bo'lmasa, OpenCV Haar cascade bilan aniqlaymiz
     if not detected:
-        np_img = np.array(image)
-        gray = cv2.cvtColor(np_img, cv2.COLOR_RGB2GRAY)
-        faces = face_cascade.detectMultiScale(
-            gray,
-            scaleFactor=1.1,
-            minNeighbors=5,
-            minSize=(60, 60)
-        )
+        try:
+            import cv2
+            cascade = get_face_cascade()
+            np_img = np.array(image)
+            gray = cv2.cvtColor(np_img, cv2.COLOR_RGB2GRAY)
+            faces = cascade.detectMultiScale(
+                gray,
+                scaleFactor=1.1,
+                minNeighbors=5,
+                minSize=(60, 60)
+            )
+        except Exception as e:
+            faces = []
 
         if len(faces) > 0:
             faces = sorted(faces, key=lambda f: f[2] * f[3], reverse=True)

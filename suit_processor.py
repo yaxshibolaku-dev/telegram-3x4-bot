@@ -15,7 +15,6 @@ from config import (
     GRID_ROWS,
     DPI
 )
-from image_processor import remove_background_and_make_white, create_10x15_sheet
 
 SUIT_DIR = BASE_DIR / "kostyum oq ko'ylak erkak"
 
@@ -158,6 +157,7 @@ def process_photo_with_suit(
     4. 3x4 JPG, 10x15 JPG (8 dona) va 10x15 PDF chop etish fayllarini yaratish
     """
     import rembg
+    from image_processor import create_10x15_sheet
     output_dir.mkdir(parents=True, exist_ok=True)
     raw_img = Image.open(input_path)
     raw_img = ImageOps.exif_transpose(raw_img)

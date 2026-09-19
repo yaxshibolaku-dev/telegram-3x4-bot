@@ -18,7 +18,7 @@ print(">>> 3x4 Photo Telegram Bot jarayoni boshlanmoqda...", flush=True)
 PORT = int(os.getenv("PORT", "10000"))
 
 class HealthHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
+    def _respond(self):
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Access-Control-Allow-Origin", "*")
@@ -30,6 +30,15 @@ class HealthHandler(BaseHTTPRequestHandler):
             "timestamp": time.time()
         }
         self.wfile.write(json.dumps(response).encode("utf-8"))
+
+    def do_GET(self):
+        self._respond()
+
+    def do_HEAD(self):
+        self._respond()
+
+    def do_POST(self):
+        self._respond()
 
     def log_message(self, format, *args):
         pass
@@ -335,9 +344,18 @@ async def on_document_received(message: Message):
 
 
 async def main():
-    print(">>> Telegram Bot polling rejimida ishga tushmoqda...", flush=True)
-    await bot.delete_webhook(drop_pending_updates=True)
-    await dp.start_polling(bot)
+    print(">>> --------------------------------------------------", flush=True)
+    print(">>> Telegram Bot polling boshlanmoqda...", flush=True)
+    try:
+        await bot.delete_webhook(drop_pending_updates=False)
+        print(">>> Webhook tekshirildi va tozalandi.", flush=True)
+        me = await bot.get_me()
+        print(f">>> Telegram Bot muvaffaqiyatli ulandi: @{me.username} (ID: {me.id})", flush=True)
+        print(">>> dp.start_polling boshlanmoqda (message, callback_query)...", flush=True)
+        await dp.start_polling(bot, allowed_updates=["message", "callback_query"])
+    except Exception as e:
+        print(f">>> CRITICAL ERROR in bot polling: {e}", flush=True)
+        logger.exception("Polling critical failure")
 
 
 if __name__ == "__main__":
