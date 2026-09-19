@@ -1,4 +1,5 @@
 import io
+import time
 from pathlib import Path
 from PIL import Image, ImageOps, ImageDraw
 import numpy as np
@@ -13,6 +14,7 @@ from config import (
 )
 
 _rembg_mod = None
+_rembg_session = None
 _face_cascade = None
 
 
@@ -22,6 +24,19 @@ def get_rembg():
         import rembg
         _rembg_mod = rembg
     return _rembg_mod
+
+
+def get_rembg_session():
+    global _rembg_session
+    if _rembg_session is None:
+        try:
+            rembg_mod = get_rembg()
+            _rembg_session = rembg_mod.new_session("u2netp")
+            print(">>> u2netp yengil AI modeli muvaffaqiyatli ishga tushdi!", flush=True)
+        except Exception as e:
+            print(f">>> u2netp session ogohlantirish: {e}", flush=True)
+            _rembg_session = None
+    return _rembg_session
 
 
 def get_face_cascade():
@@ -35,21 +50,49 @@ def get_face_cascade():
 def remove_background_and_make_white(image: Image.Image) -> Image.Image:
     """
     Rasm fonini olib tashlaydi va orqa fonni toza oq (#FFFFFF) rangga aylantiradi.
+    Katta rasmlarni max 800px masshtabda tezkor qayta ishlaydi va maskani asl rasmga qaytaradi.
+    Agar fon tozalash xatolik bersa, rasmni buzmasdan asl holatida davom ettiradi.
     """
-    # Exif ma'lumotlariga ko'ra rasmni to'g'ri burchakka aylantirish
     image = ImageOps.exif_transpose(image)
     if image.mode != "RGB":
         image = image.convert("RGB")
 
-    # rembg yordamida fonni qirqish (natija RGBA bo'ladi)
-    rembg_instance = get_rembg()
-    rgba_output = rembg_instance.remove(image)
+    w, h = image.size
+    try:
+        rembg_mod = get_rembg()
+        session = get_rembg_session()
 
-    # Oq fon yaratib, inson siluetini ustiga joylash
-    white_bg = Image.new("RGBA", rgba_output.size, (255, 255, 255, 255))
-    white_bg.paste(rgba_output, (0, 0), rgba_output)
-    
-    return white_bg.convert("RGB")
+        # Tezkor ishlash uchun rasmni qisqartiramiz (max 800px)
+        max_dim = max(w, h)
+        if max_dim > 800:
+            scale = 800.0 / max_dim
+            small_w = int(round(w * scale))
+            small_h = int(round(h * scale))
+            small_img = image.resize((small_w, small_h), Image.Resampling.BILINEAR)
+        else:
+            small_img = image
+
+        print(f">>> Fon tozalash boshlandi (o'lcham: {small_img.size})...", flush=True)
+        t0 = time.time()
+        if session is not None:
+            rgba_small = rembg_mod.remove(small_img, session=session)
+        else:
+            rgba_small = rembg_mod.remove(small_img)
+        print(f">>> Fon tozalash yakunlandi: {time.time() - t0:.2f} soniya", flush=True)
+
+        # Alpha maskani ajratib olamiz
+        alpha_mask = rgba_small.split()[-1]
+        if alpha_mask.size != (w, h):
+            alpha_mask = alpha_mask.resize((w, h), Image.Resampling.LANCZOS)
+
+        # Oq fonga asl sifatli rasmni joylashtiramiz
+        white_bg = Image.new("RGB", (w, h), (255, 255, 255))
+        white_bg.paste(image, (0, 0), mask=alpha_mask)
+        return white_bg
+
+    except Exception as e:
+        print(f">>> Fon tozalashda xatolik yuz berdi: {e}. Asl rasm ishlatiladi.", flush=True)
+        return image
 
 
 def detect_and_crop_3x4(image: Image.Image, head_box: list = None) -> Image.Image:

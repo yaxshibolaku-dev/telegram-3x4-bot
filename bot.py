@@ -185,9 +185,12 @@ async def handle_image_processing(message: Message, file_id: str, original_filen
             "⚙️ <i>AI tahlili yakunlandi. Fon tozalanmoqda va bosh kesilmaydigan 3×4 formatga keltirilmoqda...</i>"
         )
 
-        # 4. Rasmga ishlov berishni alohida thread'da bajarish
+        # 4. Rasmga ishlov berishni alohida thread'da bajarish (maksimal 30s)
         from image_processor import process_user_photo
-        results = await asyncio.to_thread(process_user_photo, input_path, user_temp_dir, head_box=head_box)
+        results = await asyncio.wait_for(
+            asyncio.to_thread(process_user_photo, input_path, user_temp_dir, head_box=head_box),
+            timeout=30.0
+        )
 
         # 5. Natijalarni yuborish
         # A) 3x4 bitta rasm
@@ -281,10 +284,16 @@ async def on_suit_selected(callback: CallbackQuery):
     try:
         if suit_id == "original":
             from image_processor import process_user_photo
-            results = await asyncio.to_thread(process_user_photo, cached_input, out_dir, head_box=head_box)
+            results = await asyncio.wait_for(
+                asyncio.to_thread(process_user_photo, cached_input, out_dir, head_box=head_box),
+                timeout=30.0
+            )
             title = "O‘z kiyimida (asli)"
         else:
-            results = await asyncio.to_thread(process_photo_with_suit, cached_input, out_dir, head_box=head_box, suit_id=suit_id)
+            results = await asyncio.wait_for(
+                asyncio.to_thread(process_photo_with_suit, cached_input, out_dir, head_box=head_box, suit_id=suit_id),
+                timeout=30.0
+            )
             title = results.get("suit_title", "Klassik kiyim")
 
         # Natijalarni yuborish
