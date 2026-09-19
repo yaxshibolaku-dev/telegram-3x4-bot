@@ -84,6 +84,17 @@ def run_test():
     assert pdf_path.exists() and pdf_path.stat().st_size > 0, "PDF not created or empty!"
     print(f"PDF created successfully: {pdf_path.stat().st_size} bytes")
     
+    print("\n--- 4. Kostyum va ko'ylak kiygizish tekshiruvi ---")
+    import suit_processor
+    suit_res = suit_processor.process_photo_with_suit(sample_input, test_dir / "suit_blue", head_box=head_box, suit_id="suit_blue")
+    assert suit_res["single_3x4"].exists(), "Suit 3x4 not created!"
+    assert suit_res["sheet_pdf"].exists(), "Suit PDF not created!"
+    print(f"Suit 3x4 created: {suit_res['single_3x4']} ({Image.open(suit_res['single_3x4']).size})")
+
+    shirt_res = suit_processor.process_photo_with_suit(sample_input, test_dir / "shirt_white", head_box=head_box, suit_id="shirt_white")
+    assert shirt_res["single_3x4"].exists(), "Shirt 3x4 not created!"
+    print(f"Shirt 3x4 created: {shirt_res['single_3x4']} ({Image.open(shirt_res['single_3x4']).size})")
+
     print("\n✅ BARCHA TESTLAR MUVAFFAQIYATLI O'TDI!")
 
 
