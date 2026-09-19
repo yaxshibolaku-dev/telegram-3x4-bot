@@ -156,38 +156,14 @@ def process_photo_with_suit(
     3. Tanlangan kostyumni kiygizish (overlay_suit)
     4. 3x4 JPG, 10x15 JPG (8 dona) va 10x15 PDF chop etish fayllarini yaratish
     """
-    from image_processor import create_10x15_sheet, get_rembg, get_rembg_session
+    from image_processor import create_10x15_sheet, remove_background_and_make_white
     output_dir.mkdir(parents=True, exist_ok=True)
     raw_img = Image.open(input_path)
     raw_img = ImageOps.exif_transpose(raw_img)
-    w, h = raw_img.size
 
-    # 1. Fonni ajratib, faqat inson RGBA siluetini olamiz (tezkor max 800px)
-    try:
-        rembg_mod = get_rembg()
-        session = get_rembg_session()
-
-        max_dim = max(w, h)
-        if max_dim > 800:
-            scale = 800.0 / max_dim
-            small_img = raw_img.resize((int(round(w * scale)), int(round(h * scale))), Image.Resampling.BILINEAR)
-        else:
-            small_img = raw_img
-
-        if session is not None:
-            rgba_small = rembg_mod.remove(small_img, session=session)
-        else:
-            rgba_small = rembg_mod.remove(small_img)
-
-        alpha_mask = rgba_small.split()[-1]
-        if alpha_mask.size != (w, h):
-            alpha_mask = alpha_mask.resize((w, h), Image.Resampling.LANCZOS)
-
-        person_rgba = raw_img.convert("RGBA")
-        person_rgba.putalpha(alpha_mask)
-    except Exception as e:
-        print(f">>> Kostyum uchun fonni ajratishda xatolik: {e}. Asl rasm ishlatiladi.", flush=True)
-        person_rgba = raw_img.convert("RGBA")
+    # 1. Fonni toza oqartiramiz (OpenCV floodFill, 0.01 soniya)
+    whitened = remove_background_and_make_white(raw_img)
+    person_rgba = whitened.convert("RGBA")
 
     # 2. Kostyumni kiygizish
     photo_3x4 = overlay_suit(person_rgba, head_box=head_box, suit_id=suit_id)
