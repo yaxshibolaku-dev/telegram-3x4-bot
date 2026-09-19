@@ -73,7 +73,6 @@ from aiogram.types import Message, FSInputFile
 from aiogram.client.default import DefaultBotProperties
 
 from config import BOT_TOKEN, TEMP_DIR, GEMINI_PRIMARY_MODEL
-from image_processor import process_user_photo
 from gemini_vision import analyze_photo_with_gemini, format_gemini_report
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -154,6 +153,7 @@ async def handle_image_processing(message: Message, file_id: str, original_filen
         )
 
         # 4. Rasmga ishlov berishni alohida thread'da bajarish
+        from image_processor import process_user_photo
         results = await asyncio.to_thread(process_user_photo, input_path, user_temp_dir, head_box=head_box)
 
         # 5. Natijalarni yuborish
