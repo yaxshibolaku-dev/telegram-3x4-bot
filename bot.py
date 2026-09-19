@@ -1,79 +1,86 @@
-import asyncio
-import logging
-import shutil
-from pathlib import Path
+import os
+import sys
 import time
+import shutil
+import logging
+import asyncio
+import threading
+from pathlib import Path
+from http.server import HTTPServer, BaseHTTPRequestHandler
+import urllib.request
 
+print(">>> 3x4 Photo Telegram Bot jarayoni boshlanmoqda...", flush=True)
+
+# -------------------------------------------------------------
+# 1. Render Web Server (Port 10000 / 8080) darhol ochiladi
+# -------------------------------------------------------------
+PORT = int(os.getenv("PORT", "10000"))
+
+class HealthHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        response = {
+            "status": "online",
+            "service": "3x4 Telegram Bot",
+            "ping": "pong",
+            "timestamp": time.time()
+        }
+        import json
+        self.wfile.write(json.dumps(response).encode("utf-8"))
+
+    def log_message(self, format, *args):
+        # Render konsolini toza saqlash
+        pass
+
+def run_health_server():
+    server = HTTPServer(("0.0.0.0", PORT), HealthHandler)
+    print(f">>> Render Web Server muvaffaqiyatli ishga tushdi: 0.0.0.0:{PORT}", flush=True)
+    server.serve_forever()
+
+# Veb-serverni alohida fonda (daemon thread) ishga tushiramiz
+threading.Thread(target=run_health_server, daemon=True).start()
+
+# -------------------------------------------------------------
+# 2. Render Keep-Alive Loop (Bot uxlab qolmasligi uchun)
+# -------------------------------------------------------------
+def keep_alive_worker(external_url: str):
+    time.sleep(30)
+    ping_url = f"{external_url.rstrip('/')}/ping"
+    print(f">>> Keep-alive monitoring faollashtirildi: {ping_url}", flush=True)
+    while True:
+        try:
+            req = urllib.request.Request(ping_url, headers={"User-Agent": "RenderKeepAlive/1.0"})
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                print(f">>> Self-ping yuborildi: status {resp.status}", flush=True)
+        except Exception as e:
+            print(f">>> Self-ping ogohlantirish: {e}", flush=True)
+        time.sleep(600)  # Har 10 daqiqada (Render 15 daqiqada uxlatadi)
+
+EXT_URL = os.getenv("RENDER_EXTERNAL_URL")
+if EXT_URL:
+    threading.Thread(target=keep_alive_worker, args=(EXT_URL,), daemon=True).start()
+
+# -------------------------------------------------------------
+# 3. Asosiy Bot Modullari va AI Kutubxonalari
+# -------------------------------------------------------------
 from aiogram import Bot, Dispatcher, F
 from aiogram.enums import ParseMode
 from aiogram.filters import CommandStart, Command
 from aiogram.types import Message, FSInputFile
 from aiogram.client.default import DefaultBotProperties
 
-import os
-from aiohttp import web
-import aiohttp
-
 from config import BOT_TOKEN, TEMP_DIR, GEMINI_PRIMARY_MODEL
 from image_processor import process_user_photo
 from gemini_vision import analyze_photo_with_gemini, format_gemini_report
 
-# Logging sozlamalari
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher()
-
-
-# --- Render Web Server va Keep-Alive Health Check ---
-async def handle_ping(request):
-    """Cron-job yoki UptimeRobot uchun oddiy keep-alive javob"""
-    return web.Response(text="pong", status=200)
-
-
-async def handle_health(request):
-    """Render monitoringi va sog'lomlik tekshiruvi"""
-    return web.json_response({
-        "status": "online",
-        "service": "3x4 Telegram Bot",
-        "gemini_model": GEMINI_PRIMARY_MODEL,
-        "timestamp": time.time()
-    })
-
-
-async def self_ping_loop(url: str):
-    """Render bepul tarifida bot uxlab qolmasligi uchun o'zini har 10 daqiqada uyg'otib turadi."""
-    await asyncio.sleep(45)
-    async with aiohttp.ClientSession() as session:
-        while True:
-            try:
-                ping_url = f"{url.rstrip('/')}/ping"
-                async with session.get(ping_url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                    logger.info(f"Self keep-alive ping yuborildi: {resp.status}")
-            except Exception as e:
-                logger.warning(f"Self-ping xatosi: {e}")
-            await asyncio.sleep(600)  # Har 10 daqiqada (600 soniya)
-
-
-async def start_web_server():
-    app = web.Application()
-    app.router.add_get("/", handle_health)
-    app.router.add_get("/health", handle_health)
-    app.router.add_get("/ping", handle_ping)
-
-    runner = web.AppRunner(app)
-    await runner.setup()
-
-    port = int(os.getenv("PORT", "8080"))
-    site = web.TCPSite(runner, "0.0.0.0", port)
-    await site.start()
-    logger.info(f"Render Web Server muvaffaqiyatli ishga tushdi: 0.0.0.0:{port}")
-
-    external_url = os.getenv("RENDER_EXTERNAL_URL")
-    if external_url:
-        logger.info(f"Avtomatik keep-alive yoqildi: {external_url}")
-        asyncio.create_task(self_ping_loop(external_url))
 
 
 @dp.message(CommandStart())
@@ -194,7 +201,6 @@ async def handle_image_processing(message: Message, file_id: str, original_filen
 
 @dp.message(F.photo)
 async def on_photo_received(message: Message):
-    # Eng yuqori sifatli rasmni tanlaymiz
     highest_photo = message.photo[-1]
     await handle_image_processing(message, highest_photo.file_id, "input.jpg")
 
@@ -213,10 +219,7 @@ async def on_document_received(message: Message):
 
 
 async def main():
-    logger.info("Bot ishga tushmoqda...")
-    # Render va monitoring uchun veb serverni ishga tushirish
-    await start_web_server()
-    # Eski kutilayotgan yangilanishlarni tozalash
+    print(">>> Telegram Bot polling rejimida ishga tushmoqda...", flush=True)
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
